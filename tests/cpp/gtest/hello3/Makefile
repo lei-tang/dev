@@ -9,7 +9,7 @@ CFLAGS=$(WALL) $(DEBUG)
 L_CC=$(CC) $(CFLAGS) $(HEADERS)
 
 C_SRC=${wildcard *.cpp}
-C_OBJ=$(patsubst %.cpp, $(OBJ_DIR)/%.o, $(C_SRC)) #目标文件
+C_OBJ=$(patsubst %.cpp, $(OBJ_DIR)/%.o, $(C_SRC)) 
 C_EXE=test
 
 all:prepare $(C_EXE)
