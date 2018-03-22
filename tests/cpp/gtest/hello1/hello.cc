@@ -4,9 +4,9 @@
 
 using namespace std;
 
-string getGreeting() { return string("Hello"); }
+string getGreeting() { return string("Hi"); }
 
-string getGreetingToSubject(string sub) { return string("Hello: " + sub); }
+string getGreetingToSubject(string sub) { return string("Hi, " + sub); }
 
 TEST(GreetingTest, GetGreetingMatchHello) {
   EXPECT_STREQ("Hello", getGreeting().c_str());
