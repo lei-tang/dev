@@ -6,14 +6,14 @@ using namespace std;
 
 string getGreeting() { return string("Hello"); }
 
-string getGreetingToSubject(string sub) { return string("Hello - " + sub); }
+string getGreetingToSubject(string sub) { return string("Hello: " + sub); }
 
 TEST(GreetingTest, GetGreetingMatchHello) {
   EXPECT_STREQ("Hello", getGreeting().c_str());
 }
 
 TEST(GreetingTest, GetGreetingMatchSubject) {
-  EXPECT_STREQ("Hello - Tony", getGreetingToSubject("Tony").c_str());
+  EXPECT_STREQ("Hello: Tom", getGreetingToSubject("Tom").c_str());
 }
 
 int main(int argc, char **argv) {
