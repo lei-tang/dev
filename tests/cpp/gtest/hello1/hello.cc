@@ -13,7 +13,7 @@ TEST(GreetingTest, GetGreetingMatchHello) {
 }
 
 TEST(GreetingTest, GetGreetingMatchSubject) {
-  EXPECT_STREQ("Hello: Tom", getGreetingToSubject("Tom").c_str());
+  EXPECT_STREQ("Hello: Jack", getGreetingToSubject("Jack").c_str());
 }
 
 int main(int argc, char **argv) {
