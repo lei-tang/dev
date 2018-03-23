@@ -9,11 +9,11 @@ string getGreeting() { return string("Hi"); }
 string getGreetingToSubject(string sub) { return string("Hi, " + sub); }
 
 TEST(GreetingTest, GetGreetingMatchHello) {
-  EXPECT_STREQ("Hello", getGreeting().c_str());
+  EXPECT_STREQ("Hi", getGreeting().c_str());
 }
 
 TEST(GreetingTest, GetGreetingMatchSubject) {
-  EXPECT_STREQ("Hello: Jack", getGreetingToSubject("Jack").c_str());
+  EXPECT_STREQ("Hi, Tony", getGreetingToSubject("Tony").c_str());
 }
 
 int main(int argc, char **argv) {
