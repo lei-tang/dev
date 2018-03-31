@@ -1,8 +1,0 @@
-directories:
-  main
-
-targets:
-  //main/...:all
-
-build_flags:
-  --crosstool_top=//custom_toolchain
