@@ -1,10 +1,10 @@
 *.swp
-../bazel-*
+bazel-*
 .idea/*
 docker/envoy
 *.iml
 /artifacts
-../custom_toolchain
+custom_toolchain
 .project
 .DS_Store
 thumbs.db
