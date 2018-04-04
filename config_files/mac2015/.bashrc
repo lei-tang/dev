@@ -78,6 +78,7 @@ fi
 export CLICOLOR=1
 #export LSCOLORS=ExFxCxDxBxegedabagacad
 #you can use this if you are using a black background:
+#this is needed if you are using a dark colorscheme (e.g., One Dark) in iterm2
 export LSCOLORS=gxBxhxDxfxhxhxhxhxcxcx
 
 # colored GCC warnings and errors
@@ -85,6 +86,7 @@ export LSCOLORS=gxBxhxDxfxhxhxhxhxcxcx
 
 
 #autojump config
+#j dir to jump to a directory. https://github.com/wting/autojump
 [ -f /usr/local/etc/profile.d/autojump.sh ] && . /usr/local/etc/profile.d/autojump.sh
 # Alias definitions.
 # You may want to put all your additions into a separate file like
