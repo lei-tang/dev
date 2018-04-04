@@ -1,0 +1,7 @@
+*.swp
+/bazel-*
+.idea/*
+docker/envoy
+*.iml
+/artifacts
+/custom_toolchain

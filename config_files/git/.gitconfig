@@ -1,0 +1,25 @@
+[http]
+	followRedirects = 1
+	followRedirects = 1
+[user]
+	name = Lei Tang
+	email = 32078630+lei-tang@users.noreply.github.com
+[core]
+	excludesfile = /Users/leitang/.gitignore_global
+[diff]
+    tool = meld
+[difftool]
+    prompt = false
+[difftool "meld"]
+    cmd = meld "$LOCAL" "$REMOTE"
+[merge]
+    tool = meld
+[mergetool "meld"]
+    # Choose one of these 2 lines (not both!) explained below.
+    cmd = meld "$LOCAL" "$MERGED" "$REMOTE" --output "$MERGED"
+#    cmd = meld "$LOCAL" "$BASE" "$REMOTE" --output "$MERGED"
+
+[core]
+	editor = /usr/local/bin/vim
+[http]
+	cookiefile = /Users/leitang/.gitcookies
