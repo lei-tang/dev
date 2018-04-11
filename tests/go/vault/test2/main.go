@@ -1,17 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"github.com/hashicorp/vault/api"
 	"io/ioutil"
 	"istio.io/istio/pkg/log"
-	"fmt"
-//	"k8s.io/kubernetes/pkg/util/mount"
 )
 
 const (
-	istioCAMountPoint   = "istio_ca"
-	istioCADescription   = "Istio CA"
-	configCAKeyCertPath = "istio_ca/config/ca"
+	istioCaMountPoint   = "istio_ca"
+	istioCaDescription  = "Istio CA"
+	configCaKeyCertPath = "istio_ca/config/ca"
 	workloadRolePath    = "istio_ca/roles/workload_role"
 	signCsrPath         = "istio_ca/sign-verbatim"
 )
@@ -24,10 +23,12 @@ const (
 	testCsrFile         = "testdata/workload-1.csr"
 )
 
-// Get the connection to a Vault server and set the token for the connection
-func getVaultConnection(addr string, token string) (*api.Client, error) {
+// Get the connection to a Vault server and set the token for the connection.
+// vaultAddr: the address of the Vault server (e.g., "http://127.0.0.1:8200").
+// token: used for authentication.
+func getVaultConnection(vaultAddr string, token string) (*api.Client, error) {
 	config := api.DefaultConfig()
-	config.Address = addr
+	config.Address = vaultAddr
 
 	client, err := api.NewClient(config)
 	if err != nil {
@@ -40,8 +41,27 @@ func getVaultConnection(addr string, token string) (*api.Client, error) {
 	return client, nil
 }
 
-// Set the workload role with the given max-TTL and number of key bits
-func setWorkloadRole(client *api.Client, maxTtl string, keyBits int) error {
+// Mount the Vault PKI.
+// caMountPoint: the mount point for CA (e.g., "istio_ca")
+// caDescription: a description for CA (e.g., "Istio CA")
+func mountVaultPki(client *api.Client, caMountPoint string, caDescription string) error {
+	var mountInput api.MountInput
+	mountInput.Description = caDescription
+	mountInput.Type = "pki"
+	err := client.Sys().Mount(caMountPoint, &mountInput)
+	if err != nil {
+		log.Errorf("Mount() failed (error %v)", err)
+		return err
+	} else {
+		return nil
+	}
+}
+
+// Set the workload role that issues certs with the given max-TTL and number of key bits.
+// rolePath: the path to the workload role (e.g., "istio_ca/roles/workload_role")
+// maxTtl:  the max life time of a workload cert (e.g., "1h")
+// keyBits:  the number of bits for the key of a workload cert (e.g., 2048)
+func setWorkloadRole(client *api.Client, rolePath string, maxTtl string, keyBits int) error {
 	m := map[string]interface{}{
 		"max_ttl":           maxTtl,
 		"key_bits":          keyBits,
@@ -49,7 +69,7 @@ func setWorkloadRole(client *api.Client, maxTtl string, keyBits int) error {
 		"allow_any_name":    true,
 	}
 
-	_, err := client.Logical().Write(workloadRolePath, m)
+	_, err := client.Logical().Write(rolePath, m)
 	if err != nil {
 		log.Errorf("Write() failed (error %v)", err)
 		return err
@@ -58,13 +78,15 @@ func setWorkloadRole(client *api.Client, maxTtl string, keyBits int) error {
 	}
 }
 
-// Set the certificate and the private key of the CA
-func setCAKeyCert(client *api.Client, keyCert string) (*api.Secret, error) {
+// Set the certificate and the private key of the CA.
+// caConfigPath: the path for configuring the CA (e.g., "istio_ca/config/ca")
+// keyCert: the private key and the public certificate of the CA
+func setCaKeyCert(client *api.Client, caConfigPath string, keyCert string) (*api.Secret, error) {
 	m := map[string]interface{}{
 		"pem_bundle": keyCert,
 	}
 
-	res, err := client.Logical().Write(configCAKeyCertPath, m)
+	res, err := client.Logical().Write(caConfigPath, m)
 	if err != nil {
 		log.Errorf("Write() failed (error %v)", err)
 		return nil, err
@@ -73,8 +95,10 @@ func setCAKeyCert(client *api.Client, keyCert string) (*api.Secret, error) {
 	}
 }
 
-// Sign a CSR and return the signed certificate
-func signCsr(client *api.Client, csr string) (*api.Secret, error) {
+// Sign a CSR and return the signed certificate.
+// csrPath: the path for signing a CSR (e.g., "istio_ca/sign-verbatim")
+// csr: the CSR to be signed
+func signCsr(client *api.Client, csrPath string, csr string) (*api.Secret, error) {
 	m := map[string]interface{}{
 		"name":                "workload_role",
 		"format":              "pem",
@@ -82,7 +106,7 @@ func signCsr(client *api.Client, csr string) (*api.Secret, error) {
 		"csr": csr,
 	}
 
-	res, err := client.Logical().Write(signCsrPath, m)
+	res, err := client.Logical().Write(csrPath, m)
 	if err != nil {
 		log.Errorf("Write() failed (error %v)", err)
 		return nil, err
@@ -90,7 +114,6 @@ func signCsr(client *api.Client, csr string) (*api.Secret, error) {
 		return res, nil
 	}
 }
-
 
 // For logging,  -stderrthreshold=INFO --alsologtostderr
 // https://github.com/istio/istio/blob/master/security/cmd/istio_ca/main.go#L243
@@ -107,34 +130,26 @@ func main() {
 		return
 	}
 
-	var mountInput api.MountInput
-	mountInput.Description = istioCADescription
-	mountInput.Type = "pki"
-	// Mount the Istio PKI
-	err = client.Sys().Mount(istioCAMountPoint, &mountInput)
-	if err != nil {
-		log.Errorf("Mount() failed (error %v)", err)
-		return
-	}
+	mountVaultPki(client, istioCaMountPoint, istioCaDescription)
 
-	// Call setCAKeyCert()
+	// Call setCaKeyCert()
 	keyCert, err := ioutil.ReadFile(testCAKeyCertFile)
 	if err != nil {
 		log.Errorf("ReadFile() failed (error %v)", err)
 		return
 	}
-	_, err = setCAKeyCert(client, string(keyCert[:]))
+	_, err = setCaKeyCert(client, configCaKeyCertPath, string(keyCert[:]))
 	if err != nil {
-		log.Errorf("setCAKeyCert() failed (error %v)", err)
+		log.Errorf("setCaKeyCert() failed (error %v)", err)
 	} else {
-		log.Debug("setCAKeyCert() succeeds.")
+		log.Debug("setCaKeyCert() succeeds.")
 		//log.Debugf("%#v", *res)
 		//fmt.Printf("%v", res.Data["certificate"])
 		//fmt.Printf("%#v", *res)
 	}
 
 	// Call setWorkloadRole()
-	err = setWorkloadRole(client, "1h", 2048)
+	err = setWorkloadRole(client, workloadRolePath, "1h", 2048)
 	if err != nil {
 		log.Errorf("setWorkloadRole() failed (error %v)", err)
 		return
@@ -146,7 +161,7 @@ func main() {
 		log.Errorf("ReadFile() failed (error %v)", err)
 		return
 	}
-	res, err := signCsr(client, string(testCsr[:]))
+	res, err := signCsr(client, signCsrPath, string(testCsr[:]))
 	if err != nil {
 		log.Errorf("signCsr() failed (error %v)", err)
 	} else {
