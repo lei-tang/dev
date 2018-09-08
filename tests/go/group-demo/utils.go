@@ -21,11 +21,12 @@ import (
 //clientId: OIDC client id
 //groupsClaim: the key for groupsClaim, e.g., "groups"
 //rootCaFilePath: the file path to the root CA certificate
-func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, rootCaFilePath string) (*oidc.Authenticator, error) {
+func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim, rootCaFilePath string) (*oidc.Authenticator, error) {
 	options := oidc.Options{
 		IssuerURL:   issuerUrl,
 		ClientID:    clientId,
 		GroupsClaim: groupsClaim,
+		UsernameClaim: userNameClaim,
 		CAFile:      rootCaFilePath,
 	}
 
@@ -68,21 +69,24 @@ func loadJSONWebPrivateKeyFromFile(path string, alg jose.SignatureAlgorithm) (*j
 	return key, nil
 }
 
-func createJwt() (string, error) {
-	privKey, err := loadJSONWebPrivateKeyFromFile("testdata/rsa_1.pem", jose.RS256)
+func createTestJwt(claimJson, issuerURL string, signer jose.Signer) (string, error) {
+	value := struct{ ISSUER_URL string }{ISSUER_URL: issuerURL}
+	s, err :=replaceValueInTemplate(claimJson, &value)
 	if err != nil {
+		glog.Errorf("Failed to replace the issuer URL: %v", err)
 		return "", err
 	}
-
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(privKey.Algorithm),
-		Key: privKey,}, nil)
+	signed, err := signer.Sign([]byte(s))
 	if err != nil {
-		glog.Errorf("Failed to create a signer: %v", err)
+		glog.Errorf("Failed to sign the JWT: %v", err)
+		return "", err
 	}
-	glog.V(5).Infof("Signer created: %+v", signer)
-
-	glog.V(5).Infof("public key is: %+v", privKey.Public())
-	return "", nil
+	jwt, err := signed.CompactSerialize()
+	if err != nil {
+		glog.Errorf("Failed to serialize the JWT: %v", err)
+		return "", err
+	}
+	return jwt, nil
 }
 
 
@@ -93,13 +97,14 @@ func replaceValueInTemplate(input string, value interface{}) (string, error) {
 		glog.Errorf("Failed to parse templated input string: %v", err)
 		return "", err
 	}
+	glog.V(5).Infof("Before the replacement: %v", input)
 	buffer := bytes.NewBuffer(nil)
 	err = tpl.Execute(buffer, &value)
 	if err != nil {
 		glog.Errorf("Failed to replace the template: %v", err)
 		return "", err
 	}
-	glog.V(5).Infof("Replaced the templated value %v as: %v", input, buffer.String())
+	glog.V(5).Infof("After the replacement: %v", buffer.String())
 	return buffer.String(), nil
 }
 
@@ -110,3 +115,4 @@ func convertWebKeyArrayToWebKeySet(keyArray []*jose.JSONWebKey) jose.JSONWebKeyS
 	}
 	return set
 }
+

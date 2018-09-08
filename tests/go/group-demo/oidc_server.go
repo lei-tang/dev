@@ -20,9 +20,9 @@ type OidcTestServer struct {
 // signer: the signing key
 // claims: a map with key=claim-name and value=claim-response
 // token: required access token
-// replaceServerUrl: whether replace the templated server url in the oidc config
+// replaceIssuerUrl: whether replace the templated issuer url
 func NewOidcTestServer(t *testing.T, pubKey jose.JSONWebKeySet, oidcConfig string, signer jose.Signer,
-	claims map[string]string, token string, replaceServerUrl bool) *OidcTestServer {
+	claims map[string]string, token string, replaceIssuerUrl bool) *OidcTestServer {
 	oidcServer := &OidcTestServer {
 		oidcConfig : oidcConfig,
 	}
@@ -42,7 +42,7 @@ func NewOidcTestServer(t *testing.T, pubKey jose.JSONWebKeySet, oidcConfig strin
 			glog.V(5).Infof("%v: returning: %+v", req.URL, string(pubKeyBytes))
 			resp.Write(pubKeyBytes)
 		case "/groups": //only support groups claim
-			claimName := req.URL.Path[1:] // strip the first char from the path, "/claim" -> "claim"
+			claimName := "groups"
 			glog.V(5).Infof("claim name is %v", claimName)
 
 			bearerToken := fmt.Sprintf("Bearer %v", token)
@@ -73,13 +73,20 @@ func NewOidcTestServer(t *testing.T, pubKey jose.JSONWebKeySet, oidcConfig strin
 	}))
 	glog.V(4).Infof("Serving OIDC at: %v", oidcServer.httpServer.URL)
 
-	value := struct{ SERVER_URL string }{SERVER_URL: oidcServer.httpServer.URL}
-	if replaceServerUrl {
+	value := struct{ ISSUER_URL string }{ISSUER_URL: oidcServer.httpServer.URL}
+	if replaceIssuerUrl {
 		s, err :=replaceValueInTemplate(oidcServer.oidcConfig, &value)
 		if err != nil {
 			t.Errorf("Failed to replace OIDC config: %v", err)
 		}
 		oidcServer.oidcConfig = s
+		if _, ok := claims["groups"]; ok {
+			g, err :=replaceValueInTemplate(claims["groups"], &value)
+			if err != nil {
+				t.Errorf("Failed to replace groups claim: %v", err)
+			}
+			claims["groups"] = g
+		}
 	}
 	return oidcServer
 }
