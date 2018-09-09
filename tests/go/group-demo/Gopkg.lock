@@ -159,6 +159,10 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  input-imports = ["k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"]
+  input-imports = [
+    "github.com/golang/glog",
+    "gopkg.in/square/go-jose.v2",
+    "k8s.io/apiserver/plugin/pkg/authenticator/token/oidc",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

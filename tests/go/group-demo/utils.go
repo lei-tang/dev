@@ -10,10 +10,11 @@ import (
 	"github.com/golang/glog"
 	"gopkg.in/square/go-jose.v2"
 	"io/ioutil"
-	"k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
+	// The original oidc library needs to add NewAuthenticatorWithPubKey() interface.
+	// The existing New(opts Options) interface will wait 10 seconds before initializing the verifier.
+	"github.com/lei-tang/dev/tests/go/group-demo/oidc"
 	"text/template"
 )
-
 
 //CreateGroupAuthenticator() creates an OIDC authenticator for a distributed group
 //claim.
@@ -21,16 +22,20 @@ import (
 //clientId: OIDC client id
 //groupsClaim: the key for groupsClaim, e.g., "groups"
 //rootCaFilePath: the file path to the root CA certificate
-func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim, rootCaFilePath string) (*oidc.Authenticator, error) {
+//pubKeys: the public key for the verifier
+func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim, rootCaFilePath string,
+	pubKeys []*jose.JSONWebKey) (*oidc.Authenticator, error) {
+	//This is needed to avoid the error of "verifier not initialized for issuer"
+	oidc.SetSynchronizeTokenIDVerifier(true)
 	options := oidc.Options{
-		IssuerURL:   issuerUrl,
-		ClientID:    clientId,
-		GroupsClaim: groupsClaim,
+		IssuerURL:     issuerUrl,
+		ClientID:      clientId,
+		GroupsClaim:   groupsClaim,
 		UsernameClaim: userNameClaim,
-		CAFile:      rootCaFilePath,
+		CAFile:        rootCaFilePath,
 	}
 
-	authenticator, err := oidc.New(options)
+	authenticator, err := oidc.NewAuthenticatorWithPubKey(options, pubKeys)
 	if err != nil {
 		glog.Errorf("Failed to create an oidc authenticator: %v", err)
 		return nil, err
@@ -71,7 +76,7 @@ func loadJSONWebPrivateKeyFromFile(path string, alg jose.SignatureAlgorithm) (*j
 
 func createTestJwt(claimJson, issuerURL string, signer jose.Signer) (string, error) {
 	value := struct{ ISSUER_URL string }{ISSUER_URL: issuerURL}
-	s, err :=replaceValueInTemplate(claimJson, &value)
+	s, err := replaceValueInTemplate(claimJson, &value)
 	if err != nil {
 		glog.Errorf("Failed to replace the issuer URL: %v", err)
 		return "", err
@@ -88,7 +93,6 @@ func createTestJwt(claimJson, issuerURL string, signer jose.Signer) (string, err
 	}
 	return jwt, nil
 }
-
 
 // replaceValueInTemplate replaces a templated input value with the actual value.
 func replaceValueInTemplate(input string, value interface{}) (string, error) {
@@ -115,4 +119,3 @@ func convertWebKeyArrayToWebKeySet(keyArray []*jose.JSONWebKey) jose.JSONWebKeyS
 	}
 	return set
 }
-

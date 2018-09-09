@@ -52,7 +52,7 @@ func TestGroupToken(t *testing.T) {
 	}`
 	claims := map[string]string{"groups": testGroupResp}
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(privKey.Algorithm),
-		Key: privKey,}, nil)
+		Key: privKey}, nil)
 	if err != nil {
 		t.Fatalf("Failed to create a signer: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestGroupToken(t *testing.T) {
 	// Create the authenticator
 	issuerUrl := oidcServer.httpServer.URL
 	authenticator, err := CreateGroupAuthenticator(issuerUrl, "test-client-id",
-		"groups", "username", tempCaFile.Name())
+		"groups", "username", tempCaFile.Name(), pubKeys)
 	if err != nil {
 		t.Fatalf("Failed to create a group authenticator: %v", err)
 	}

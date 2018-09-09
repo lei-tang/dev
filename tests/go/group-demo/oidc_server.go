@@ -12,7 +12,7 @@ import (
 
 type OidcTestServer struct {
 	oidcConfig string
-  httpServer *httptest.Server
+	httpServer *httptest.Server
 }
 
 // NewOidcTestServer creates an OIDC server for testing purpose.
@@ -23,8 +23,8 @@ type OidcTestServer struct {
 // replaceIssuerUrl: whether replace the templated issuer url
 func NewOidcTestServer(t *testing.T, pubKey jose.JSONWebKeySet, oidcConfig string, signer jose.Signer,
 	claims map[string]string, token string, replaceIssuerUrl bool) *OidcTestServer {
-	oidcServer := &OidcTestServer {
-		oidcConfig : oidcConfig,
+	oidcServer := &OidcTestServer{
+		oidcConfig: oidcConfig,
 	}
 	oidcServer.httpServer = httptest.NewTLSServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		glog.V(5).Infof("request: %+v", *req)
@@ -48,7 +48,7 @@ func NewOidcTestServer(t *testing.T, pubKey jose.JSONWebKeySet, oidcConfig strin
 			bearerToken := fmt.Sprintf("Bearer %v", token)
 			glog.V(5).Infof("bearerToken is %v", bearerToken)
 
-			reqToken:= req.Header.Get("Authorization")
+			reqToken := req.Header.Get("Authorization")
 			glog.V(5).Infof("Request token is %v", reqToken)
 			if bearerToken != reqToken {
 				t.Errorf("The request token %v does not match the expected token %v", reqToken, bearerToken)
@@ -75,13 +75,13 @@ func NewOidcTestServer(t *testing.T, pubKey jose.JSONWebKeySet, oidcConfig strin
 
 	value := struct{ ISSUER_URL string }{ISSUER_URL: oidcServer.httpServer.URL}
 	if replaceIssuerUrl {
-		s, err :=replaceValueInTemplate(oidcServer.oidcConfig, &value)
+		s, err := replaceValueInTemplate(oidcServer.oidcConfig, &value)
 		if err != nil {
 			t.Errorf("Failed to replace OIDC config: %v", err)
 		}
 		oidcServer.oidcConfig = s
 		if _, ok := claims["groups"]; ok {
-			g, err :=replaceValueInTemplate(claims["groups"], &value)
+			g, err := replaceValueInTemplate(claims["groups"], &value)
 			if err != nil {
 				t.Errorf("Failed to replace groups claim: %v", err)
 			}
