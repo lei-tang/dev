@@ -351,6 +351,8 @@ func newAuthenticator(opts Options, initVerifier func(ctx context.Context, a *Au
 
 	var resolver *claimResolver
 	if opts.GroupsClaim != "" {
+		glog.V(5).Infof("opts.GroupsClaim: %v", opts.GroupsClaim)
+		glog.V(5).Infof("verifierConfig is: %+v", verifierConfig)
 		resolver = newClaimResolver(opts.GroupsClaim, client, verifierConfig)
 	}
 
@@ -492,6 +494,9 @@ func (r *claimResolver) expand(c claims) error {
 		claimSourcesKey = "_claim_sources"
 	)
 
+	glog.V(5).Infof("r.claim is: %v", r.claim)
+	glog.V(5).Infof("claims is: %+v", c)
+
 	_, ok := c[r.claim]
 	if ok {
 		// There already is a normal claim, skip resolving.
@@ -503,10 +508,12 @@ func (r *claimResolver) expand(c claims) error {
 		return nil
 	}
 
+	// map from claim name to source name
 	claimToSource := map[string]string{}
 	if err := json.Unmarshal([]byte(names), &claimToSource); err != nil {
 		return fmt.Errorf("oidc: error parsing distributed claim names: %v", err)
 	}
+	glog.V(5).Infof("claimToSource map is: %+v", claimToSource)
 
 	rawSources, ok := c[claimSourcesKey]
 	if !ok {
@@ -515,17 +522,22 @@ func (r *claimResolver) expand(c claims) error {
 		return fmt.Errorf("oidc: no claim sources")
 	}
 
+	// map from source name to source endpoint
 	var sources map[string]endpoint
 	if err := json.Unmarshal([]byte(rawSources), &sources); err != nil {
 		// The claims sources claim is malformed, this is not an expected state.
 		return fmt.Errorf("oidc: could not parse claim sources: %v", err)
 	}
 
+	glog.V(5).Infof("source name to source endpoint map is: %+v", sources)
+
+	// find the source for the claim, e.g., groups
 	src, ok := claimToSource[r.claim]
 	if !ok {
 		// No distributed claim present.
 		return nil
 	}
+	// find the endpoint for the claim
 	ep, ok := sources[src]
 	if !ok {
 		return fmt.Errorf("id token _claim_names contained a source %s missing in _claims_sources", src)
@@ -534,12 +546,14 @@ func (r *claimResolver) expand(c claims) error {
 		// This is maybe an aggregated claim (ep.JWT != "").
 		return nil
 	}
+	// resolve the claim at remote endpoint
 	return r.resolve(ep, c)
 }
 
 // resolve requests distributed claims from all endpoints passed in,
 // and inserts the lookup results into allClaims.
 func (r *claimResolver) resolve(endpoint endpoint, allClaims claims) error {
+	// get the claim JWT from remote endpoint
 	// TODO: cache resolved claims.
 	jwt, err := getClaimJWT(r.client, endpoint.URL, endpoint.AccessToken)
 	if err != nil {
@@ -549,10 +563,12 @@ func (r *claimResolver) resolve(endpoint endpoint, allClaims claims) error {
 	if err != nil {
 		return fmt.Errorf("getting untrusted issuer from endpoint %v failed for claim %q: %v", endpoint.URL, r.claim, err)
 	}
+	glog.V(5).Infof("claim JWT is issued by %v", untrustedIss)
 	v, err := r.Verifier(untrustedIss)
 	if err != nil {
 		return fmt.Errorf("verifying untrusted issuer %v failed: %v", untrustedIss, err)
 	}
+	// verify the claim JWT from remote endpoint
 	t, err := v.Verify(context.Background(), jwt)
 	if err != nil {
 		return fmt.Errorf("verify distributed claim token: %v", err)
@@ -561,15 +577,37 @@ func (r *claimResolver) resolve(endpoint endpoint, allClaims claims) error {
 	if err := t.Claims(&distClaims); err != nil {
 		return fmt.Errorf("could not parse distributed claims for claim %v: %v", r.claim, err)
 	}
+	glog.V(5).Infof("Verified distributed claims is: %+v", distClaims)
 	value, ok := distClaims[r.claim]
 	if !ok {
 		return fmt.Errorf("jwt returned by distributed claim endpoint %s did not contain claim: %v", endpoint, r.claim)
 	}
+	glog.V(5).Infof("resolved claim name %v has value: %+v", r.claim, string(value))
 	allClaims[r.claim] = value
 	return nil
 }
 
 func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error) {
+	glog.V(5).Infof("------------------------------------------------------------")
+	glog.V(5).Infof("Enter AuthenticateToken()")
+	glog.V(5).Infof("Authenticator issuerURL: %v", a.issuerURL)
+	glog.V(5).Infof("Token to authenticate is: %v", token)
+	// Example token:
+	//{
+	//	"iss": "https://127.0.0.1:34445",
+	//	"aud": "my-client",
+	//	"username": "jane",
+	//	"_claim_names": {
+	//	  "groups": "src1"
+	//  },
+	//	"_claim_sources": {
+	//	  "src1": {
+	//		  "endpoint": "https://127.0.0.1:34445/groups",
+	//			"access_token": "groups_token"
+	//	  }
+	//  },
+	//	"exp": 1257897600
+	//}
 	if !hasCorrectIssuer(a.issuerURL, token) {
 		return nil, false, nil
 	}
@@ -580,15 +618,21 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 	}
 
 	ctx := context.Background()
+	glog.V(5).Infof("Verify the token ...")
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
 		return nil, false, fmt.Errorf("oidc: verify token: %v", err)
 	}
+	glog.V(5).Infof("The idToken returned by Verify() is:")
+	glog.V(5).Infof("%+v", *idToken)
 
 	var c claims
 	if err := idToken.Claims(&c); err != nil {
 		return nil, false, fmt.Errorf("oidc: parse claims: %v", err)
 	}
+	glog.V(5).Infof("The idToken claims is:")
+	glog.V(5).Infof("%+v", c)
+
 	if a.resolver != nil {
 		if err := a.resolver.expand(c); err != nil {
 			return nil, false, fmt.Errorf("oidc: could not expand distributed claims: %v", err)
@@ -641,11 +685,14 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 		}
 	}
 
+	glog.V(5).Infof("a.requiredClaims are %+v", a.requiredClaims)
+
 	// check to ensure all required claims are present in the ID token and have matching values.
 	for claim, value := range a.requiredClaims {
 		if !c.hasClaim(claim) {
 			return nil, false, fmt.Errorf("oidc: required claim %s not present in ID token", claim)
 		}
+		glog.V(5).Infof("c has claim %v, value=", claim, value)
 
 		// NOTE: Only string values are supported as valid required claim values.
 		var claimValue string
@@ -657,6 +704,8 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 		}
 	}
 
+	glog.V(5).Infof("Exit AuthenticateToken()")
+	glog.V(5).Infof("------------------------------------------------------------")
 	return info, true, nil
 }
 
@@ -665,6 +714,8 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 // will not be set.
 // TODO: Allow passing in JSON hints to the IDP.
 func getClaimJWT(client *http.Client, url, accessToken string) (string, error) {
+	glog.V(5).Infof("getClaimJWT(): url=%v, accessToken=%v", url, accessToken)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -690,6 +741,7 @@ func getClaimJWT(client *http.Client, url, accessToken string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not decode distributed claim response")
 	}
+	glog.V(5).Infof("claim JWT response from remote endpoint is: %+v", string(responseBytes))
 	return string(responseBytes), nil
 }
 
