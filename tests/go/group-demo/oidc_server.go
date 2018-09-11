@@ -30,7 +30,7 @@ func NewOidcTestServer(t *testing.T, pubKey jose.JSONWebKeySet, oidcConfig strin
 		glog.V(5).Infof("request: %+v", *req)
 		switch req.URL.Path {
 		case "/.well-known/openid-configuration":
-			glog.V(5).Infof("%v: returning: %+v", req.URL, oidcConfig)
+			glog.V(5).Infof("%v: returning: %+v", req.URL, oidcServer.oidcConfig)
 			resp.Header().Set("Content-Type", "application/json")
 			resp.Write([]byte(oidcServer.oidcConfig))
 		case "/jwks":

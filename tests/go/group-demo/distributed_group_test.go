@@ -79,7 +79,7 @@ func TestGroupToken(t *testing.T) {
 	// Create the authenticator
 	issuerUrl := oidcServer.httpServer.URL
 	authenticator, err := CreateGroupAuthenticator(issuerUrl, "test-client-id",
-		"groups", "username", tempCaFile.Name(), pubKeys)
+		"groups", "username", tempCaFile.Name(), 1)
 	if err != nil {
 		t.Fatalf("Failed to create a group authenticator: %v", err)
 	}

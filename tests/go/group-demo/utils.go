@@ -22,9 +22,11 @@ import (
 //clientId: OIDC client id
 //groupsClaim: the key for groupsClaim, e.g., "groups"
 //rootCaFilePath: the file path to the root CA certificate
-//pubKeys: the public key for the verifier
-func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim, rootCaFilePath string,
-	pubKeys []*jose.JSONWebKey) (*oidc.Authenticator, error) {
+//pubKeys: *OBSOLETE* the public key for the verifier
+//func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim, rootCaFilePath string,
+//	pubKeys []*jose.JSONWebKey) (*oidc.Authenticator, error) {
+func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim,
+	rootCaFilePath string, retryInterval int) (*oidc.Authenticator, error) {
 	//This is needed to avoid the error of "verifier not initialized for issuer"
 	oidc.SetSynchronizeTokenIDVerifier(true)
 	options := oidc.Options{
@@ -35,7 +37,8 @@ func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim, r
 		CAFile:        rootCaFilePath,
 	}
 
-	authenticator, err := oidc.NewAuthenticatorWithPubKey(options, pubKeys)
+	//authenticator, err := oidc.NewAuthenticatorWithPubKey(options, pubKeys)
+	authenticator, err := oidc.NewAuthenticatorWithIssuerURL(options)
 	if err != nil {
 		glog.Errorf("Failed to create an oidc authenticator: %v", err)
 		return nil, err

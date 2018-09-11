@@ -118,6 +118,7 @@ type Options struct {
 // initVerifier creates a new ID token verifier for the given configuration and issuer URL.  On success, calls setVerifier with the
 // resulting verifier.
 func initVerifier(ctx context.Context, config *oidc.Config, iss string) (*oidc.IDTokenVerifier, error) {
+	glog.V(4).Infof("initVerifier: iss=%v, config=%+v", iss, config)
 	provider, err := oidc.NewProvider(ctx, iss)
 	if err != nil {
 		return nil, fmt.Errorf("init verifier failed: %v", err)
@@ -231,6 +232,20 @@ func New(opts Options) (*Authenticator, error) {
 			a.setVerifier(verifier)
 			return true, nil
 		}, ctx.Done())
+	})
+}
+
+func NewAuthenticatorWithIssuerURL(opts Options) (*Authenticator, error) {
+	return newAuthenticator(opts, func(ctx context.Context, a *Authenticator, config *oidc.Config) {
+		glog.V(5).Infof("NewProvider(%v)", a.issuerURL)
+		provider, err := oidc.NewProvider(ctx, a.issuerURL)
+		if err == nil {
+			verifier := provider.Verifier(config)
+			a.setVerifier(verifier)
+			glog.V(5).Infof("setVerifier(%+v)", verifier)
+		} else {
+			glog.Errorf("Failed to create a provider for %v: %v", provider, err)
+		}
 	})
 }
 
@@ -494,7 +509,7 @@ func (r *claimResolver) expand(c claims) error {
 		claimSourcesKey = "_claim_sources"
 	)
 
-	glog.V(5).Infof("r.claim is: %v", r.claim)
+	glog.V(5).Infof("The resolver claim (i.e., r.claim) is: %v", r.claim)
 	glog.V(5).Infof("claims is: %+v", c)
 
 	_, ok := c[r.claim]
@@ -553,8 +568,10 @@ func (r *claimResolver) expand(c claims) error {
 // resolve requests distributed claims from all endpoints passed in,
 // and inserts the lookup results into allClaims.
 func (r *claimResolver) resolve(endpoint endpoint, allClaims claims) error {
+	glog.V(5).Infof("resolve the claims %+v at %+v", allClaims, endpoint)
 	// get the claim JWT from remote endpoint
 	// TODO: cache resolved claims.
+	glog.V(5).Infof("getClaimJWT() will be called to get claim JWT")
 	jwt, err := getClaimJWT(r.client, endpoint.URL, endpoint.AccessToken)
 	if err != nil {
 		return fmt.Errorf("while getting distributed claim %q: %v", r.claim, err)
@@ -564,6 +581,7 @@ func (r *claimResolver) resolve(endpoint endpoint, allClaims claims) error {
 		return fmt.Errorf("getting untrusted issuer from endpoint %v failed for claim %q: %v", endpoint.URL, r.claim, err)
 	}
 	glog.V(5).Infof("claim JWT is issued by %v", untrustedIss)
+	glog.V(5).Infof("create a IDTokenVerifier for %v", untrustedIss)
 	v, err := r.Verifier(untrustedIss)
 	if err != nil {
 		return fmt.Errorf("verifying untrusted issuer %v failed: %v", untrustedIss, err)
