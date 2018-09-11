@@ -10,32 +10,35 @@ import (
 )
 
 var (
-	testClaim1 = `{
-				"iss": "{{.ISSUER_URL}}",
-				"aud": "test-client-id",
-				"username": "test-user-name",
-				"_claim_names": {
-						"groups": "group1"
-				},
-				"_claim_sources": {
-						"group1": {
-								"endpoint": "{{.ISSUER_URL}}/groups",
-								"access_token": "group_access_token"
-						}
-				},
-				"exp": 10413792000
-		}`
+	testClaim1 =
+	`{
+	   "iss": "{{.ISSUER_URL}}",
+	   "aud": "test-client-id",
+		"username": "test-user-name",
+		"_claim_names": {
+		  "groups": "group1"
+		},
+	    "_claim_sources": {
+		  "group1": {
+		    "endpoint": "{{.ISSUER_URL}}/groups",
+			"access_token": "group_access_token"
+		  }
+	   },
+	  "exp": 10413792000
+	}`
 
-	testGroupResp = `{
-					"iss": "{{.ISSUER_URL}}",
-				  "aud": "test-client-id",
-					"groups": ["g1", "g2"],
-					"exp": 10413792000
-		}`
+	testGroupResp =
+ 	`{
+	  "iss": "{{.ISSUER_URL}}",
+	  "aud": "test-client-id",
+	  "groups": ["g1", "g2"],
+	  "exp": 10413792000
+	}`
 )
 
 func TestGroupToken(t *testing.T) {
 	glog.V(5).Infof("Enter TestGroupToken")
+
 	// Load the private key for signing JWT
 	privKey, err := loadJSONWebPrivateKeyFromFile("testdata/rsa_1.pem", jose.RS256)
 	if err != nil {
@@ -48,7 +51,7 @@ func TestGroupToken(t *testing.T) {
 	pubKeys := []*jose.JSONWebKey{&pubKey}
 	oidcConfig := `{
 	  "issuer": "{{.ISSUER_URL}}",
-		"jwks_uri": "{{.ISSUER_URL}}/jwks"
+      "jwks_uri": "{{.ISSUER_URL}}/jwks"
 	}`
 	claims := map[string]string{"groups": testGroupResp}
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(privKey.Algorithm),
@@ -76,20 +79,25 @@ func TestGroupToken(t *testing.T) {
 	tempCaFile.Close()
 	defer os.Remove(tempCaFile.Name())
 
+	// Create a test JWT
+	testJwt, err := createTestJwt(testClaim1, oidcServer.httpServer.URL, signer)
+	if err != nil {
+		t.Fatalf("Failed to create a group authenticator: %v", err)
+	}
+
+	// Parse the JWT issuer from the JWT receivegetJwtIssd
+	issuerUrl, err := getJwtIss(testJwt)
+	if err != nil {
+		t.Fatalf("Failed to parse the issuer of the JWT: %v", err)
+	}
+
 	// Create the authenticator
-	issuerUrl := oidcServer.httpServer.URL
 	authenticator, err := CreateGroupAuthenticator(issuerUrl, "test-client-id",
-		"groups", "username", tempCaFile.Name(), 1)
+		"groups", "username", tempCaFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create a group authenticator: %v", err)
 	}
 	glog.V(5).Infof("Authenticator has been created: %+v", authenticator)
-
-	// Create a test JWT
-	testJwt, err := createTestJwt(testClaim1, issuerUrl, signer)
-	if err != nil {
-		t.Fatalf("Failed to create a group authenticator: %v", err)
-	}
 
 	// Authenticate the group JWT token and return the resolved group info
 	userInfo, verified, err := authenticator.AuthenticateToken(testJwt)
@@ -103,4 +111,7 @@ func TestGroupToken(t *testing.T) {
 	}
 	glog.Errorf("The token verification succeeds.")
 	glog.Infof("The user groups is: %+v", userInfo.GetGroups())
+
+	// Close the authenticator
+	authenticator.Close()
 }

@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"github.com/golang/glog"
 	"gopkg.in/square/go-jose.v2"
 	"io/ioutil"
+	"strings"
+
 	// The original oidc library needs to add NewAuthenticatorWithPubKey() interface.
 	// The existing New(opts Options) interface will wait 10 seconds before initializing the verifier.
 	"github.com/lei-tang/dev/tests/go/group-demo/oidc"
@@ -26,7 +30,7 @@ import (
 //func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim, rootCaFilePath string,
 //	pubKeys []*jose.JSONWebKey) (*oidc.Authenticator, error) {
 func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim,
-	rootCaFilePath string, retryInterval int) (*oidc.Authenticator, error) {
+	rootCaFilePath string) (*oidc.Authenticator, error) {
 	//This is needed to avoid the error of "verifier not initialized for issuer"
 	oidc.SetSynchronizeTokenIDVerifier(true)
 	options := oidc.Options{
@@ -121,4 +125,29 @@ func convertWebKeyArrayToWebKeySet(keyArray []*jose.JSONWebKey) jose.JSONWebKeyS
 		set.Keys = append(set.Keys, *k)
 	}
 	return set
+}
+
+// Get the iss claim from a JWT
+func getJwtIss(jwt string) (string, error) {
+	// Decoded JWT payload
+	var d []byte
+	var err error
+	s := strings.Split(jwt, ".")
+	if len(s) != 3 {
+		return "", fmt.Errorf("Invalid JWT with %v components", len(s))
+	}
+	if len(s[1]) == 0 {
+		return "", fmt.Errorf("The payload of the JWT is empty")
+	}
+	if d, err = base64.RawURLEncoding.DecodeString(s[1]); err != nil {
+		return "", fmt.Errorf("Fail to decode the JWT payload: %v", err)
+	}
+	issuer := struct {
+		Iss string `json:"iss"`
+	}{}
+	// Extract iss claim from the payload
+	if err = json.Unmarshal(d, &issuer); err != nil {
+		return "", fmt.Errorf("Fail to parse json: %v", err)
+	}
+	return issuer.Iss, nil
 }
