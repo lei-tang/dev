@@ -24,21 +24,28 @@ import (
 //claim.
 //issuerUrl: the issuer for the JWT token
 //clientId: OIDC client id
-//groupsClaim: the key for groupsClaim, e.g., "groups"
+//groupsClaim: the key for groups claim, e.g., "groups",
+//when it is an empty string. groups claim will not be extracted.
+//groupsPrefix: the prefix added to the groups claim.
+//userNameClaim: the key for user name claim, e.g., "username", "email", and etc.
+//The user name claim must be present in the JWT.
 //rootCaFilePath: the file path to the root CA certificate
+//requiredClaims: the claim names and values that must exist in the JWT
 //pubKeys: *OBSOLETE* the public key for the verifier
 //func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim, rootCaFilePath string,
 //	pubKeys []*jose.JSONWebKey) (*oidc.Authenticator, error) {
-func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, userNameClaim,
-	rootCaFilePath string) (*oidc.Authenticator, error) {
+func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, groupsPrefix, userNameClaim,
+	rootCaFilePath string, requiredClaims map[string]string) (*oidc.Authenticator, error) {
 	//This is needed to avoid the error of "verifier not initialized for issuer"
 	oidc.SetSynchronizeTokenIDVerifier(true)
 	options := oidc.Options{
 		IssuerURL:     issuerUrl,
 		ClientID:      clientId,
 		GroupsClaim:   groupsClaim,
+		GroupsPrefix:   groupsPrefix,
 		UsernameClaim: userNameClaim,
 		CAFile:        rootCaFilePath,
+		RequiredClaims: requiredClaims,
 	}
 
 	//authenticator, err := oidc.NewAuthenticatorWithPubKey(options, pubKeys)

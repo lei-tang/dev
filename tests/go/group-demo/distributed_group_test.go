@@ -103,12 +103,19 @@ func TestGroupToken(t *testing.T) {
 	}
 
 	// Create the authenticator
+	// TODO: create a test case when the client id (e.g., test-client-id-2) does not match
+	// the audience in the JWT. In this case, the JWT should be rejected.
+	// https://openid.net/specs/openid-connect-core-1_0.html#CodeIDToken
+	//authenticator, err := CreateGroupAuthenticator(issuerUrl, "test-client-id-2",
+	//	"groups", "username", tempCaFile.Name())
 	authenticator, err := CreateGroupAuthenticator(issuerUrl, "test-client-id",
-		"groups", "username", tempCaFile.Name())
+		"groups", "", "username", tempCaFile.Name(), map[string]string{})
 	if err != nil {
 		t.Fatalf("Failed to create a group authenticator: %v", err)
 	}
 	glog.V(5).Infof("Authenticator has been created: %+v", authenticator)
+	// Close the authenticator
+	defer authenticator.Close()
 
 	// Authenticate the group JWT token and return the resolved group info
 	userInfo, verified, err := authenticator.AuthenticateToken(testJwt)
@@ -122,7 +129,4 @@ func TestGroupToken(t *testing.T) {
 	}
 	glog.Errorf("The token verification succeeds.")
 	glog.Infof("The user groups is: %+v", userInfo.GetGroups())
-
-	// Close the authenticator
-	authenticator.Close()
 }
