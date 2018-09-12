@@ -151,3 +151,40 @@ func getJwtIss(jwt string) (string, error) {
 	}
 	return issuer.Iss, nil
 }
+
+// Check whether the JWT contains a distributed groups claim
+func containDistributedGroupsClaim(jwt, groupKey string) (bool, error) {
+	// The claim key for the claims (OIDC Connect Core 1.0, section 5.6.2).
+	claimNamesKey := "_claim_names"
+	// Decoded JWT payload
+	var d []byte
+	var err error
+	s := strings.Split(jwt, ".")
+	if len(s) != 3 {
+		return false, fmt.Errorf("Invalid JWT with %v components", len(s))
+	}
+	if len(s[1]) == 0 {
+		return false, fmt.Errorf("The payload of the JWT is empty")
+	}
+	if d, err = base64.RawURLEncoding.DecodeString(s[1]); err != nil {
+		return false, fmt.Errorf("Fail to on to decode JWT payload: %v", err)
+	}
+
+	m:= map[string]json.RawMessage{}
+	if err:=json.Unmarshal(d, &m); err !=nil {
+		return false, fmt.Errorf("Fail to unmarshal the JWT: %v", err)
+	}
+	if _, ok := m[claimNamesKey]; !ok {
+		return false, nil
+	}
+
+	claims := map[string]json.RawMessage{}
+	if err:=json.Unmarshal(m[claimNamesKey], &claims); err !=nil {
+		return false, fmt.Errorf("Fail to unmarshal %v: %v", claimNamesKey, err)
+	}
+	if _, ok := claims[groupKey]; !ok {
+		return false, nil
+	} else {
+		return true, nil
+	}
+}

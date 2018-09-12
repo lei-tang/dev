@@ -85,6 +85,17 @@ func TestGroupToken(t *testing.T) {
 		t.Fatalf("Failed to create a group authenticator: %v", err)
 	}
 
+	// Check whether the JWT contains a distributed groups claim
+	// If not, no need to resolve the distributed groups claim
+	containDistGroupClaim, err := containDistributedGroupsClaim(testJwt, "groups")
+	if err != nil {
+		t.Fatalf("Failed on getting distributed groups claim: %v", err)
+	}
+	if !containDistGroupClaim {
+		t.Fatalf("The test JWT contains a distributed groups claim but the function returns false.")
+	}
+	glog.Infof("The JWT contains distributed groups claim.")
+
 	// Parse the JWT issuer from the JWT receivegetJwtIssd
 	issuerUrl, err := getJwtIss(testJwt)
 	if err != nil {
