@@ -39,12 +39,12 @@ func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, groupsPrefix, us
 	//This is needed to avoid the error of "verifier not initialized for issuer"
 	oidc.SetSynchronizeTokenIDVerifier(true)
 	options := oidc.Options{
-		IssuerURL:     issuerUrl,
-		ClientID:      clientId,
-		GroupsClaim:   groupsClaim,
+		IssuerURL:      issuerUrl,
+		ClientID:       clientId,
+		GroupsClaim:    groupsClaim,
 		GroupsPrefix:   groupsPrefix,
-		UsernameClaim: userNameClaim,
-		CAFile:        rootCaFilePath,
+		UsernameClaim:  userNameClaim,
+		CAFile:         rootCaFilePath,
 		RequiredClaims: requiredClaims,
 	}
 
@@ -177,8 +177,8 @@ func ContainDistributedGroupsClaim(jwt, groupKey string) (bool, error) {
 		return false, fmt.Errorf("Fail to on to decode JWT payload: %v", err)
 	}
 
-	m:= map[string]json.RawMessage{}
-	if err:=json.Unmarshal(d, &m); err !=nil {
+	m := map[string]json.RawMessage{}
+	if err := json.Unmarshal(d, &m); err != nil {
 		return false, fmt.Errorf("Fail to unmarshal the JWT: %v", err)
 	}
 	if _, ok := m[claimNamesKey]; !ok {
@@ -186,7 +186,7 @@ func ContainDistributedGroupsClaim(jwt, groupKey string) (bool, error) {
 	}
 
 	claims := map[string]json.RawMessage{}
-	if err:=json.Unmarshal(m[claimNamesKey], &claims); err !=nil {
+	if err := json.Unmarshal(m[claimNamesKey], &claims); err != nil {
 		return false, fmt.Errorf("Fail to unmarshal %v: %v", claimNamesKey, err)
 	}
 	if _, ok := claims[groupKey]; !ok {

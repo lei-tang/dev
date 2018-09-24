@@ -27,6 +27,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:8539d6ac4449078695fa19498e386b2cba7036121d6eb54f2aa9dd07ac17e416"
+  name = "github.com/lei-tang/dev"
+  packages = ["tests/go/group-demo/oidc"]
+  pruneopts = "UT"
+  revision = "8e28ab0dc101d977d85f09b6358118b90ae176d4"
+
+[[projects]]
+  branch = "master"
   digest = "1:bd9efe4e0b0f768302a1e2f0c22458149278de533e521206e5ddc71848c269a0"
   name = "github.com/pquerna/cachecontrol"
   packages = [
@@ -139,12 +147,9 @@
   revision = "6429050ef506887d121f3e7306e894f8900d8a63"
 
 [[projects]]
-  digest = "1:24c26fb8563e22d8d69c9560e336d56dec6eb148f465e5e7bd54d7599cfc6d08"
+  digest = "1:449764a891824b3f64f2f1802a52647be57990e38d64b14d064159ceb757e423"
   name = "k8s.io/apiserver"
-  packages = [
-    "pkg/authentication/user",
-    "plugin/pkg/authenticator/token/oidc",
-  ]
+  packages = ["pkg/authentication/user"]
   pruneopts = "UT"
   revision = "fad0fdecfaf427fb14b7d0d0781445c57283f9e1"
 
@@ -160,9 +165,14 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/coreos/go-oidc",
     "github.com/golang/glog",
+    "github.com/lei-tang/dev/tests/go/group-demo/oidc",
     "gopkg.in/square/go-jose.v2",
-    "k8s.io/apiserver/plugin/pkg/authenticator/token/oidc",
+    "k8s.io/apimachinery/pkg/util/net",
+    "k8s.io/apimachinery/pkg/util/wait",
+    "k8s.io/apiserver/pkg/authentication/user",
+    "k8s.io/client-go/util/cert",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

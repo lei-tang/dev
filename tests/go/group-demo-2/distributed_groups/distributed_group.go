@@ -1,80 +1,66 @@
-package group_demo
+package main
 
 import (
-	"encoding/pem"
+	"flag"
 	"github.com/golang/glog"
 	"github.com/lei-tang/dev/tests/go/group-demo-2/utils"
 	"gopkg.in/square/go-jose.v2"
-	"io/ioutil"
-	"os"
-	"testing"
 )
 
+var (
+	testClaim1 = `{
+	   "iss": "{{.ISSUER_URL}}",
+	   "aud": "test-client-id",
+		"username": "test-user-name",
+		"_claim_names": {
+		  "groups": "group1"
+		},
+	    "_claim_sources": {
+		  "group1": {
+		    "endpoint": "{{.ISSUER_URL}}/groups",
+			"access_token": "group_access_token"
+		  }
+	   },
+	  "exp": 10413792000
+	}`
+)
 
-func TestGroupToken(t *testing.T) {
-	glog.V(5).Infof("Enter TestGroupToken")
+func TestDistributedGroupToken(oidcServerUrl, rootCaCertPath string) {
+	glog.V(5).Infof("Enter TestDistributedGroupToken")
 
 	// Load the private key for signing JWT
-	privKey, err := utils.LoadJSONWebPrivateKeyFromFile("testdata/rsa_1.pem", jose.RS256)
+	privKey, err := utils.LoadJSONWebPrivateKeyFromFile("../testdata/rsa_1.pem", jose.RS256)
 	if err != nil {
-		t.Fatalf("Failed to load private key from file: %v", err)
+		glog.Fatalf("Failed to load private key from file: %v", err)
 	}
 	glog.V(5).Infof("public key is: %+v", privKey.Public())
-
-	// Create OIDC test server
-	pubKey := privKey.Public()
-	pubKeys := []*jose.JSONWebKey{&pubKey}
-	oidcConfig := `{
-	  "issuer": "{{.ISSUER_URL}}",
-      "jwks_uri": "{{.ISSUER_URL}}/jwks"
-	}`
-	claims := map[string]string{"groups": testGroupResp}
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(privKey.Algorithm),
 		Key: privKey}, nil)
 	if err != nil {
-		t.Fatalf("Failed to create a signer: %v", err)
+		glog.Fatalf("Failed to create a signer: %v", err)
 	}
-	oidcServer := NewOidcTestServer(t, utils.ConvertWebKeyArrayToWebKeySet(pubKeys), oidcConfig, signer,
-		claims, "group_access_token", true)
-	defer oidcServer.httpServer.Close()
-
-	// Create the CA certificate
-	tempCaFile, err := ioutil.TempFile("", "temp_ca.cert")
-	if err != nil {
-		t.Fatalf("Failed to create a temporary file: %v", err)
-	}
-	caCert := oidcServer.httpServer.TLS.Certificates[0].Certificate[0]
-	pemBlock := &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caCert,
-	}
-	if err = pem.Encode(tempCaFile, pemBlock); err != nil {
-		t.Fatalf("Failed to encode the CA certificate: %v", err)
-	}
-	tempCaFile.Close()
-	defer os.Remove(tempCaFile.Name())
 
 	// Create a test JWT
-	testJwt, err := utils.CreateTestJwt(testClaim1, oidcServer.httpServer.URL, signer)
+	testJwt, err := utils.CreateTestJwt(testClaim1, oidcServerUrl, signer)
 	if err != nil {
-		t.Fatalf("Failed to create a group authenticator: %v", err)
+		glog.Fatalf("Failed to create a group authenticator: %v", err)
 	}
 
 	// Check whether the JWT contains a distributed groups claim
 	// If not, no need to resolve the distributed groups claim
 	containDistGroupClaim, err := utils.ContainDistributedGroupsClaim(testJwt, "groups")
 	if err != nil {
-		t.Fatalf("Failed on getting distributed groups claim: %v", err)
+		glog.Fatalf("Failed on getting distributed groups claim: %v", err)
 	}
 	if !containDistGroupClaim {
-		t.Fatalf("The test JWT contains a distributed groups claim but the function returns false.")
+		glog.Fatalf("The test JWT contains a distributed groups claim but the function returns false.")
 	}
 	glog.Infof("The JWT contains distributed groups claim.")
 
 	// Parse the JWT issuer from the JWT receivegetJwtIssd
 	issuerUrl, err := utils.GetJwtIss(testJwt)
 	if err != nil {
-		t.Fatalf("Failed to parse the issuer of the JWT: %v", err)
+		glog.Fatalf("Failed to parse the issuer of the JWT: %v", err)
 	}
 
 	// Create the authenticator
@@ -84,9 +70,9 @@ func TestGroupToken(t *testing.T) {
 	//authenticator, err := CreateGroupAuthenticator(issuerUrl, "test-client-id-2",
 	//	"groups", "username", tempCaFile.Name())
 	authenticator, err := utils.CreateGroupAuthenticator(issuerUrl, "test-client-id",
-		"groups", "", "username", tempCaFile.Name(), map[string]string{})
+		"groups", "", "username", rootCaCertPath, map[string]string{})
 	if err != nil {
-		t.Fatalf("Failed to create a group authenticator: %v", err)
+		glog.Fatalf("Failed to create a group authenticator: %v", err)
 	}
 	glog.V(5).Infof("Authenticator has been created: %+v", authenticator)
 	// Close the authenticator
@@ -104,4 +90,19 @@ func TestGroupToken(t *testing.T) {
 	}
 	glog.Errorf("The token verification succeeds.")
 	glog.Infof("The user groups is: %+v", userInfo.GetGroups())
+}
+
+func main() {
+	var oidcServer string
+	var rootCaCertPath string
+	flag.StringVar(&oidcServer, "oidc-server", "", "oidc-server URL")
+	flag.StringVar(&rootCaCertPath, "root-ca-cert-path", "", "path to the root CA certificate")
+	flag.Parse()
+	if len(oidcServer) == 0 {
+		glog.Fatalf("Must specify the OIDC server URL.")
+	}
+	if len(rootCaCertPath) == 0 {
+		glog.Fatalf("Must specify the path to the root CA certificate.")
+	}
+	TestDistributedGroupToken(oidcServer, rootCaCertPath)
 }

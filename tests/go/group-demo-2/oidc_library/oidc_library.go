@@ -24,7 +24,7 @@ oidc implements the authenticator.Token interface using the OpenID Connect proto
 	}
 	tokenAuthenticator, err := oidc.New(config)
 */
-package oidc
+package oidc_library
 
 import (
 	"context"
