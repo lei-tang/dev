@@ -17,12 +17,33 @@ import (
 )
 
 var (
-	testGroupResp = `{
+	testClaim1 =
+	`
+	{
 	  "iss": "{{.ISSUER_URL}}",
 	  "aud": "test-client-id",
-	  "groups": ["g1", "g2"],
+		"username": "test-user-name",
+		"_claim_names": {
+		  "groups": "group_source_1"
+		},
+	  "_claim_sources": {
+		  "group_source_1": {
+		    "endpoint": "{{.ISSUER_URL}}/groups",
+			  "access_token": "group_access_token"
+		  }
+	  },
 	  "exp": 10413792000
-	}`
+	}
+  `
+	testGroupResp =
+	`
+  {
+	  "iss": "{{.ISSUER_URL}}",
+	  "aud": "test-client-id",
+	  "groups": ["group1", "group2"],
+	  "exp": 10413792000
+	}
+  `
 )
 
 type OidcTestServer struct {
@@ -116,7 +137,7 @@ func main() {
 	glog.V(5).Infof("Start OIDC server...")
 
 	// Load the private key for signing JWT
-	privKey, err := utils.LoadJSONWebPrivateKeyFromFile("../testdata/rsa_1.pem", jose.RS256)
+	privKey, err := utils.LoadJSONWebPrivateKeyFromFile("../testdata/oidc_server_signing_key.pem", jose.RS256)
 	if err != nil {
 		glog.Fatalf("Failed to load private key from file: %v", err)
 	}
@@ -127,7 +148,7 @@ func main() {
 	pubKeys := []*jose.JSONWebKey{&pubKey}
 	oidcConfig := `{
 	  "issuer": "{{.ISSUER_URL}}",
-      "jwks_uri": "{{.ISSUER_URL}}/jwks"
+    "jwks_uri": "{{.ISSUER_URL}}/jwks"
 	}`
 	claims := map[string]string{"groups": testGroupResp}
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(privKey.Algorithm),
@@ -138,22 +159,30 @@ func main() {
 	oidcServer := NewOidcTestServer(utils.ConvertWebKeyArrayToWebKeySet(pubKeys), oidcConfig, signer,
 		claims, "group_access_token", true)
 
-	// Create the CA certificate
-	tempCaFile, err := ioutil.TempFile("", "temp_ca.cert")
+	// Create the TLS certificate
+	tempCertFile, err := ioutil.TempFile("", "temp_tls.cert")
 	if err != nil {
 		glog.Fatalf("Failed to create a temporary file: %v", err)
 	}
-	caCert := oidcServer.httpServer.TLS.Certificates[0].Certificate[0]
+	cert := oidcServer.httpServer.TLS.Certificates[0].Certificate[0]
 	pemBlock := &pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: caCert,
+		Bytes: cert,
 	}
-	if err = pem.Encode(tempCaFile, pemBlock); err != nil {
-		glog.Fatalf("Failed to encode the CA certificate: %v", err)
+	if err = pem.Encode(tempCertFile, pemBlock); err != nil {
+		glog.Fatalf("Failed to encode the certificate: %v", err)
 	}
-	tempCaFile.Close()
-	glog.Infof("The path to the root CA certificate is: %v", tempCaFile.Name())
-	defer os.Remove(tempCaFile.Name())
+	tempCertFile.Close()
+	glog.Infof("The path to the TLS certificate is: %v", tempCertFile.Name())
+	defer os.Remove(tempCertFile.Name())
+
+	// Create a test JWT
+	glog.Infof("Create an example JWT with distributed claims:")
+	testJwt, err := utils.CreateTestJwt(testClaim1, oidcServer.httpServer.URL, signer)
+	if err != nil {
+		glog.Fatalf("Failed to create a group authenticator: %v", err)
+	}
+	glog.Infof(testJwt)
 
 	// Close the OIDC server when ctrl-c is pressed.
 	var stopCh = make(chan os.Signal)

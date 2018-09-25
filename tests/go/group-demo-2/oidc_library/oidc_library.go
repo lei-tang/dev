@@ -249,19 +249,6 @@ func NewAuthenticatorWithIssuerURL(opts Options) (*Authenticator, error) {
 	})
 }
 
-func NewAuthenticatorWithPubKey(opts Options, pubKeys []*jose.JSONWebKey) (*Authenticator, error) {
-	// Initialize the authenticator.
-	a, err := newAuthenticator(opts, func(ctx context.Context, a *Authenticator, config *oidc.Config) {
-		// Set the verifier to use the public key set instead of reading from a remote.
-		a.setVerifier(oidc.NewVerifier(
-			opts.IssuerURL,
-			&StaticKeySet{keys: pubKeys},
-			config,
-		))
-	})
-	return a, err
-}
-
 // The verifier may need to be ready by SetSynchronizeTokenIDVerifier(true)
 func SetSynchronizeTokenIDVerifier(sync bool) {
 	synchronizeTokenIDVerifierForTest = sync

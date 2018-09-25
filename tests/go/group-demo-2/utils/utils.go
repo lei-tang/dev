@@ -16,7 +16,7 @@ import (
 
 	// The New(opts Options) interface in the original oidc library
 	// will wait 10 seconds before initializing the verifier.
-	"github.com/lei-tang/dev/tests/go/group-demo/oidc"
+	oidc "github.com/lei-tang/dev/tests/go/group-demo-2/oidc_library"
 	"text/template"
 )
 
@@ -48,7 +48,6 @@ func CreateGroupAuthenticator(issuerUrl, clientId, groupsClaim, groupsPrefix, us
 		RequiredClaims: requiredClaims,
 	}
 
-	//authenticator, err := oidc.NewAuthenticatorWithPubKey(options, pubKeys)
 	authenticator, err := oidc.NewAuthenticatorWithIssuerURL(options)
 	if err != nil {
 		glog.Errorf("Failed to create an oidc authenticator: %v", err)
