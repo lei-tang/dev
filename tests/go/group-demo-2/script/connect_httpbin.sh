@@ -2,7 +2,8 @@
 
 # Run istio.github.io/docs/tasks/security/rbac-groups/
 export NS=rbac-groups-test-ns
-pushd ~/go/src/istio.io/istio
+# Enter the directory containing latest Istio install files
+pushd ~/tools/istio/istio-master-20180920-09-15
 kubectl delete namespace $NS
 kubectl create ns $NS
 kubectl apply -f <(istioctl kube-inject -f samples/httpbin/httpbin.yaml) -n $NS
@@ -12,6 +13,7 @@ kubectl apply -f <(istioctl kube-inject -f samples/sleep/sleep.yaml) -n $NS
 kubectl exec $(kubectl get pod -l app=sleep -n $NS -o jsonpath={.items..metadata.name}) -c sleep -n $NS -- curl http://httpbin.$NS:8000/ip -s -o /dev/null -w "%{http_code}\n"
 
 # Apply an authentication policy to require both mutual TLS and JWT authentication for httpbin.
+# TODO: change issuer and jwksUri, jwksUri must be reachable from the cluster
 cat <<EOF | kubectl apply -n $NS -f -
 apiVersion: "authentication.istio.io/v1alpha1"
 kind: "Policy"
