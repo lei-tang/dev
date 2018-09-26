@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"github.com/golang/glog"
 	"github.com/lei-tang/dev/tests/go/group-demo-2/utils"
+	"gopkg.in/square/go-jose.v2"
 )
 
 func TestDistributedGroupToken(oidcServerUrl, rootCaCertPath, jwt string) {
@@ -42,7 +44,7 @@ func TestDistributedGroupToken(oidcServerUrl, rootCaCertPath, jwt string) {
 	defer authenticator.Close()
 
 	// Authenticate the group JWT token and return the resolved group info
-	userInfo, verified, err := authenticator.AuthenticateToken(jwt)
+	userInfo, claims, verified, err := authenticator.AuthenticateToken(jwt)
 	if err != nil {
 		glog.Errorf("Failed to authenticate the JWT: %v", err)
 		return
@@ -53,6 +55,30 @@ func TestDistributedGroupToken(oidcServerUrl, rootCaCertPath, jwt string) {
 	}
 	glog.Infof("The JWT is authenticated.")
 	glog.Infof("The user groups is: %+v", userInfo.GetGroups())
+	glog.Infof("The claims are: %+v", claims)
+
+	glog.Infof("Sign the resolved JWT claims.")
+	// Load the private key for signing resolved JWT
+	privKey, err := utils.LoadJSONWebPrivateKeyFromFile("../testdata/oidc_server_signing_key.pem", jose.RS256)
+	if err != nil {
+		glog.Fatalf("Failed to load private key from file: %v", err)
+	}
+	glog.V(5).Infof("public key is: %+v", privKey.Public())
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(privKey.Algorithm),
+		               Key: privKey}, nil)
+	if err != nil {
+		glog.Fatalf("Failed to create a signer: %v", err)
+	}
+	// Sign the resolved JWT
+	jwtByte, err := json.Marshal(claims)
+	if err != nil {
+		glog.Fatalf("Failed to convert claims to JSON: %v", err)
+	}
+	jwtResolved, err := utils.CreateTestJwt(string(jwtByte), oidcServerUrl, signer)
+	if err != nil {
+		glog.Fatalf("Failed to create a JWT: %v", err)
+	}
+	glog.Infof("The JWT with resolved claims is: %+v", jwtResolved)
 }
 
 //TODO:
@@ -61,19 +87,20 @@ func TestDistributedGroupToken(oidcServerUrl, rootCaCertPath, jwt string) {
 //3. authorize the resigned JWT with group array (follow the user guide for groups claim)
 //4. write script to run the demo
 //5. create the detailed message flow slide
+//6. currently only resolve the "groups" claim. May extend to support any distributed claim.
 func main() {
 	var oidcServer string
 	var rootCaCertPath string
 	var jwt string
 	flag.StringVar(&oidcServer, "oidc-server", "", "oidc-server URL")
-	flag.StringVar(&rootCaCertPath, "root-ca-cert-path", "", "path to the root CA certificate")
+	flag.StringVar(&rootCaCertPath, "tls-cert-path", "", "path to the root CA certificate")
 	flag.StringVar(&jwt, "jwt", "", "the JWT to authenticate")
 	flag.Parse()
 	if len(oidcServer) == 0 {
 		glog.Fatalf("Must specify the OIDC server URL --oidc-server.")
 	}
 	if len(rootCaCertPath) == 0 {
-		glog.Fatalf("Must specify the path to the root CA certificate --root-ca-cert-path.")
+		glog.Fatalf("Must specify the path to the root CA certificate --tls-cert-path.")
 	}
 	if len(jwt) == 0 {
 		glog.Fatalf("Must specify the JWT to authenticate --jwt.")

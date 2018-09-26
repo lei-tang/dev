@@ -57,6 +57,15 @@ var (
 	synchronizeTokenIDVerifierForTest = false
 )
 
+const (
+	// The claim containing a map of endpoint references per claim.
+	// OIDC Connect Core 1.0, section 5.6.2.
+	claimNamesKey = "_claim_names"
+	// The claim containing endpoint specifications.
+	// OIDC Connect Core 1.0, section 5.6.2.
+	claimSourcesKey = "_claim_sources"
+)
+
 type Options struct {
 	// IssuerURL is the URL the provider signs ID Tokens as. This will be the "iss"
 	// field of all tokens produced by the provider and is used for configuration
@@ -487,14 +496,14 @@ func (r *claimResolver) Verifier(iss string) (*oidc.IDTokenVerifier, error) {
 //   },
 // }
 func (r *claimResolver) expand(c claims) error {
-	const (
-		// The claim containing a map of endpoint references per claim.
-		// OIDC Connect Core 1.0, section 5.6.2.
-		claimNamesKey = "_claim_names"
-		// The claim containing endpoint specifications.
-		// OIDC Connect Core 1.0, section 5.6.2.
-		claimSourcesKey = "_claim_sources"
-	)
+	//const (
+	//	// The claim containing a map of endpoint references per claim.
+	//	// OIDC Connect Core 1.0, section 5.6.2.
+	//	claimNamesKey = "_claim_names"
+	//	// The claim containing endpoint specifications.
+	//	// OIDC Connect Core 1.0, section 5.6.2.
+	//	claimSourcesKey = "_claim_sources"
+	//)
 
 	glog.V(5).Infof("The resolver claim (i.e., r.claim) is: %v", r.claim)
 	glog.V(5).Infof("claims is: %+v", c)
@@ -592,7 +601,7 @@ func (r *claimResolver) resolve(endpoint endpoint, allClaims claims) error {
 	return nil
 }
 
-func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error) {
+func (a *Authenticator) AuthenticateToken(token string) (user.Info, map[string]json.RawMessage, bool, error) {
 	glog.V(5).Infof("------------------------------------------------------------")
 	glog.V(5).Infof("Enter AuthenticateToken()")
 	glog.V(5).Infof("Authenticator issuerURL: %v", a.issuerURL)
@@ -614,39 +623,39 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 	//	"exp": 1257897600
 	//}
 	if !hasCorrectIssuer(a.issuerURL, token) {
-		return nil, false, nil
+		return nil, nil, false, nil
 	}
 
 	verifier, ok := a.idTokenVerifier()
 	if !ok {
-		return nil, false, fmt.Errorf("oidc: authenticator not initialized")
+		return nil, nil, false, fmt.Errorf("oidc: authenticator not initialized")
 	}
 
 	ctx := context.Background()
 	glog.V(5).Infof("Verify the token ...")
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
-		return nil, false, fmt.Errorf("oidc: verify token: %v", err)
+		return nil, nil, false, fmt.Errorf("oidc: verify token: %v", err)
 	}
 	glog.V(5).Infof("The idToken returned by Verify() is:")
 	glog.V(5).Infof("%+v", *idToken)
 
 	var c claims
 	if err := idToken.Claims(&c); err != nil {
-		return nil, false, fmt.Errorf("oidc: parse claims: %v", err)
+		return nil, nil, false, fmt.Errorf("oidc: parse claims: %v", err)
 	}
 	glog.V(5).Infof("The idToken claims is:")
 	glog.V(5).Infof("%+v", c)
 
 	if a.resolver != nil {
 		if err := a.resolver.expand(c); err != nil {
-			return nil, false, fmt.Errorf("oidc: could not expand distributed claims: %v", err)
+			return nil, nil, false, fmt.Errorf("oidc: could not expand distributed claims: %v", err)
 		}
 	}
 
 	var username string
 	if err := c.unmarshalClaim(a.usernameClaim, &username); err != nil {
-		return nil, false, fmt.Errorf("oidc: parse username claims %q: %v", a.usernameClaim, err)
+		return nil, nil, false, fmt.Errorf("oidc: parse username claims %q: %v", a.usernameClaim, err)
 	}
 
 	if a.usernameClaim == "email" {
@@ -655,12 +664,12 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 		if hasEmailVerified := c.hasClaim("email_verified"); hasEmailVerified {
 			var emailVerified bool
 			if err := c.unmarshalClaim("email_verified", &emailVerified); err != nil {
-				return nil, false, fmt.Errorf("oidc: parse 'email_verified' claim: %v", err)
+				return nil, nil, false, fmt.Errorf("oidc: parse 'email_verified' claim: %v", err)
 			}
 
 			// If the email_verified claim is present we have to verify it is set to `true`.
 			if !emailVerified {
-				return nil, false, fmt.Errorf("oidc: email not verified")
+				return nil, nil, false, fmt.Errorf("oidc: email not verified")
 			}
 		}
 	}
@@ -678,7 +687,7 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 			// See: https://github.com/kubernetes/kubernetes/issues/33290
 			var groups stringOrArray
 			if err := c.unmarshalClaim(a.groupsClaim, &groups); err != nil {
-				return nil, false, fmt.Errorf("oidc: parse groups claim %q: %v", a.groupsClaim, err)
+				return nil, nil, false, fmt.Errorf("oidc: parse groups claim %q: %v", a.groupsClaim, err)
 			}
 			info.Groups = []string(groups)
 		}
@@ -695,23 +704,32 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 	// check to ensure all required claims are present in the ID token and have matching values.
 	for claim, value := range a.requiredClaims {
 		if !c.hasClaim(claim) {
-			return nil, false, fmt.Errorf("oidc: required claim %s not present in ID token", claim)
+			return nil, nil, false, fmt.Errorf("oidc: required claim %s not present in ID token", claim)
 		}
 		glog.V(5).Infof("c has claim %v, value=", claim, value)
 
 		// NOTE: Only string values are supported as valid required claim values.
 		var claimValue string
 		if err := c.unmarshalClaim(claim, &claimValue); err != nil {
-			return nil, false, fmt.Errorf("oidc: parse claim %s: %v", claim, err)
+			return nil, nil, false, fmt.Errorf("oidc: parse claim %s: %v", claim, err)
 		}
 		if claimValue != value {
-			return nil, false, fmt.Errorf("oidc: required claim %s value does not match. Got = %s, want = %s", claim, claimValue, value)
+			return nil, nil, false, fmt.Errorf("oidc: required claim %s value does not match. Got = %s, want = %s", claim, claimValue, value)
 		}
 	}
 
 	glog.V(5).Infof("Exit AuthenticateToken()")
 	glog.V(5).Infof("------------------------------------------------------------")
-	return info, true, nil
+
+	// Remove distributed claims from claims.
+  if _,ok := c[claimNamesKey]; ok {
+      delete(c, claimNamesKey);
+  }
+	if _,ok := c[claimSourcesKey]; ok {
+		delete(c, claimSourcesKey);
+	}
+
+	return info, c, true, nil
 }
 
 // getClaimJWT gets a distributed claim JWT from url, using the supplied access
