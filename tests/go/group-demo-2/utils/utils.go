@@ -12,6 +12,7 @@ import (
 	"github.com/golang/glog"
 	"gopkg.in/square/go-jose.v2"
 	"io/ioutil"
+	"k8s.io/apiserver/pkg/authentication/user"
 	"strings"
 
 	// The New(opts Options) interface in the original oidc library
@@ -87,25 +88,6 @@ func LoadJSONWebPrivateKeyFromFile(path string, alg jose.SignatureAlgorithm) (*j
 	return key, nil
 }
 
-
-// LoadJSONWebKeySetFromJson creates a JSONWebKey from the JSON
-// private key in the file.
-// path: the path to the JSON private key file
-func LoadJSONWebKeySetFromJson(path string) (*jose.JSONWebKeySet, error) {
-	d, err := ioutil.ReadFile(path)
-	if err != nil {
-		glog.Errorf("Failed to read key file: %v", err)
-		return nil, err
-	}
-	key := &jose.JSONWebKeySet{}
-
-	err = json.Unmarshal(d, &key)
-	if err != nil {
-		glog.Errorf("Failed to unmarshal JSON to key: %v", err)
-		return nil, err
-	}
-	return key, nil
-}
 
 func CreateTestJwt(claimJson, issuerURL string, signer jose.Signer) (string, error) {
 	value := struct{ ISSUER_URL string }{ISSUER_URL: issuerURL}
@@ -213,4 +195,84 @@ func ContainDistributedGroupsClaim(jwt, groupKey string) (bool, error) {
 	} else {
 		return true, nil
 	}
+}
+
+
+// Create a JWT from the claims
+// issuer: issuer for the JWT
+// signer: the signer for the JWT
+// claims: the claims in the JWT
+func CreateJwtWithClaims(issuer string, signer jose.Signer, claims map[string]json.RawMessage) (string, error) {
+	// Set the issuer
+	if _,ok := claims["iss"]; ok {
+		claims["iss"] = []byte(issuer)
+	} else {
+		return "", fmt.Errorf("No issuer in the claims.")
+	}
+	jwtByte, err := json.Marshal(claims)
+	if err != nil {
+		glog.Errorf("Failed to convert claims to JSON: %v", err)
+		return "", nil
+	}
+	// Sign the resolved JWT
+	signed, err := signer.Sign(jwtByte)
+	if err != nil {
+		glog.Errorf("Failed to sign the JWT: %v", err)
+		return "", err
+	}
+	jwt, err := signed.CompactSerialize()
+	if err != nil {
+		glog.Errorf("Failed to serialize the JWT: %v", err)
+		return "", err
+	}
+
+	return jwt, nil
+}
+
+
+// Resolve the distributed group claim in a JWT
+// clientId: oidc client id
+// groupClaimName: the name of the distributed group claim
+// groupPrefixToAdd: the prefix to be added to a resolved distributed group claim value
+// userNameClaimName: the name of the user name claim (e.g., email, username, etc)
+// tlsCertPath: the path to the TLS certificate of the OIDC server
+// jwt: the JWT to resolve
+func ResolveDistributedGroupToken(clientId, groupClaimName, groupPrefixToAdd,
+     userNameClaimName, tlsCertPath, jwt string) (user.Info, map[string]json.RawMessage, error) {
+	glog.V(5).Infof("Enter ResolveDistributedGroupToken")
+
+	// Check whether the JWT contains a distributed groups claim
+	// If not, no need to resolve the distributed groups claim
+	containDistGroupClaim, err := ContainDistributedGroupsClaim(jwt, "groups")
+	if err != nil {
+		return nil, nil, err
+	}
+	if !containDistGroupClaim {
+		return nil, nil, fmt.Errorf("There is no distributed groups claim in the JWT")
+	}
+
+	// Parse the JWT issuer
+	issuerUrl, err := GetJwtIss(jwt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	authenticator, err := CreateGroupAuthenticator(issuerUrl, clientId,
+		groupClaimName, groupPrefixToAdd, userNameClaimName, tlsCertPath, map[string]string{})
+	if err != nil {
+		return nil, nil, err
+	}
+	glog.V(5).Infof("Authenticator has been created: %+v", authenticator)
+	// Close the authenticator
+	defer authenticator.Close()
+
+	// Authenticate the group JWT token and return the resolved group info
+	userInfo, claims, verified, err := authenticator.AuthenticateToken(jwt)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !verified {
+		return nil, nil, fmt.Errorf("The JWT failed to pass the authentication.")
+	}
+	return userInfo, claims, nil
 }
