@@ -87,6 +87,26 @@ func LoadJSONWebPrivateKeyFromFile(path string, alg jose.SignatureAlgorithm) (*j
 	return key, nil
 }
 
+
+// LoadJSONWebKeySetFromJson creates a JSONWebKey from the JSON
+// private key in the file.
+// path: the path to the JSON private key file
+func LoadJSONWebKeySetFromJson(path string) (*jose.JSONWebKeySet, error) {
+	d, err := ioutil.ReadFile(path)
+	if err != nil {
+		glog.Errorf("Failed to read key file: %v", err)
+		return nil, err
+	}
+	key := &jose.JSONWebKeySet{}
+
+	err = json.Unmarshal(d, &key)
+	if err != nil {
+		glog.Errorf("Failed to unmarshal JSON to key: %v", err)
+		return nil, err
+	}
+	return key, nil
+}
+
 func CreateTestJwt(claimJson, issuerURL string, signer jose.Signer) (string, error) {
 	value := struct{ ISSUER_URL string }{ISSUER_URL: issuerURL}
 	s, err := ReplaceValueInTemplate(claimJson, &value)

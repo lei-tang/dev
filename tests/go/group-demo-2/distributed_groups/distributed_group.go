@@ -8,6 +8,10 @@ import (
 	"gopkg.in/square/go-jose.v2"
 )
 
+var (
+	tokenServiceIssuer = `"token-service"`
+)
+
 func TestDistributedGroupToken(oidcServerUrl, rootCaCertPath, jwt string) {
 	glog.V(5).Infof("Enter TestDistributedGroupToken")
 
@@ -59,22 +63,37 @@ func TestDistributedGroupToken(oidcServerUrl, rootCaCertPath, jwt string) {
 
 	glog.Infof("Sign the resolved JWT claims.")
 	// Load the private key for signing resolved JWT
-	privKey, err := utils.LoadJSONWebPrivateKeyFromFile("../testdata/oidc_server_signing_key.pem", jose.RS256)
+	keySet, err := utils.LoadJSONWebKeySetFromJson("../testdata/token_service_signing_key_jwks.json")
 	if err != nil {
-		glog.Fatalf("Failed to load private key from file: %v", err)
+		glog.Fatalf("Failed to load JSON key from the file: %v", err)
 	}
+	if len(keySet.Keys) < 1 {
+		glog.Fatalf("Empty key set!")
+	}
+	if len(keySet.Keys) > 1 {
+		glog.Infof("Multiple keys in the key set. Only the first one is used.")
+	}
+	privKey := keySet.Keys[0]
 	glog.V(5).Infof("public key is: %+v", privKey.Public())
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(privKey.Algorithm),
-		               Key: privKey}, nil)
+	glog.Infof("Private key is: %+v", privKey)
+	// TODO: the private key must be of rsa.PrivateKey format
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(jose.RS256),
+		               Key: privKey.Key}, nil)
 	if err != nil {
 		glog.Fatalf("Failed to create a signer: %v", err)
+	}
+	// Replace the issuer to be token service.
+	if _,ok := claims["iss"]; ok {
+		glog.V(5).Infof("Replace issuer from: %+v", string(claims["iss"]))
+		claims["iss"] = []byte(tokenServiceIssuer)
+		glog.V(5).Infof("to: %+v", string(claims["iss"]))
 	}
 	// Sign the resolved JWT
 	jwtByte, err := json.Marshal(claims)
 	if err != nil {
 		glog.Fatalf("Failed to convert claims to JSON: %v", err)
 	}
-	jwtResolved, err := utils.CreateTestJwt(string(jwtByte), oidcServerUrl, signer)
+	jwtResolved, err := utils.CreateTestJwt(string(jwtByte), tokenServiceIssuer, signer)
 	if err != nil {
 		glog.Fatalf("Failed to create a JWT: %v", err)
 	}

@@ -4,7 +4,9 @@
 export NS=rbac-groups-test-ns
 # Enter the directory containing latest Istio install files
 pushd ~/tools/istio/istio-master-20180920-09-15
+# The deletion can take a long time
 kubectl delete namespace $NS
+
 kubectl create ns $NS
 kubectl apply -f <(istioctl kube-inject -f samples/httpbin/httpbin.yaml) -n $NS
 kubectl apply -f <(istioctl kube-inject -f samples/sleep/sleep.yaml) -n $NS
@@ -26,8 +28,8 @@ spec:
   - mtls: {}
   origins:
   - jwt:
-      issuer: "https://127.0.0.1:36733"
-      jwksUri: "https://127.0.0.1:36733/jwks"
+      issuer: "token-service"
+      jwksUri: "https://raw.githubusercontent.com/istio/istio/master/security/tools/jwt/samples/jwks.json"
   principalBinding: USE_ORIGIN
 EOF
 
