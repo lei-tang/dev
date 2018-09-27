@@ -151,6 +151,8 @@ func main() {
     "jwks_uri": "{{.ISSUER_URL}}/jwks"
 	}`
 	claims := map[string]string{"groups": testGroupResp}
+	glog.Infof("Private key is: %+v", privKey)
+	glog.Infof("Private key Key field is: %+v", privKey.Key)
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(privKey.Algorithm),
 		Key: privKey}, nil)
 	if err != nil {

@@ -74,11 +74,16 @@ func TestDistributedGroupToken(oidcServerUrl, rootCaCertPath, jwt string) {
 		glog.Infof("Multiple keys in the key set. Only the first one is used.")
 	}
 	privKey := keySet.Keys[0]
+	privKey.Algorithm = string(jose.RS256)
 	glog.V(5).Infof("public key is: %+v", privKey.Public())
 	glog.Infof("Private key is: %+v", privKey)
 	// TODO: the private key must be of rsa.PrivateKey format
+	// Need to emulate creating the signer from the private key in oidc_server.go main().
+	glog.Infof("Private key Key field is: %+v", privKey.Key)
+	//signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(jose.RS256),
+	//	               Key: privKey.Key}, nil)
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.SignatureAlgorithm(jose.RS256),
-		               Key: privKey.Key}, nil)
+		Key: privKey}, nil)
 	if err != nil {
 		glog.Fatalf("Failed to create a signer: %v", err)
 	}
