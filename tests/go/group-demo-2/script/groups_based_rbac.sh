@@ -5,7 +5,7 @@ export NS=rbac-groups-test-ns
 # Enter the directory containing latest Istio install files
 pushd ~/tools/istio/istio-master-20180920-09-15
 # The deletion can take a long time
-kubectl delete namespace $NS
+# kubectl delete namespace $NS
 
 kubectl create ns $NS
 kubectl apply -f <(istioctl kube-inject -f samples/httpbin/httpbin.yaml) -n $NS
@@ -15,7 +15,6 @@ kubectl apply -f <(istioctl kube-inject -f samples/sleep/sleep.yaml) -n $NS
 kubectl exec $(kubectl get pod -l app=sleep -n $NS -o jsonpath={.items..metadata.name}) -c sleep -n $NS -- curl http://httpbin.$NS:8000/ip -s -o /dev/null -w "%{http_code}\n"
 
 # Apply an authentication policy to require both mutual TLS and JWT authentication for httpbin.
-# TODO: change issuer and jwksUri, jwksUri must be reachable from the cluster
 cat <<EOF | kubectl apply -n $NS -f -
 apiVersion: "authentication.istio.io/v1alpha1"
 kind: "Policy"
@@ -32,10 +31,6 @@ spec:
       jwksUri: "https://raw.githubusercontent.com/istio/istio/master/security/tools/jwt/samples/jwks.json"
   principalBinding: USE_ORIGIN
 EOF
-
-
-TOKEN=eyJhbGciOiJSUzI1NiIsImtpZCI6ImQ5NmNmNThmY2Q5YzZhMmRiYTY1ZjcxZGY4YjhhNjVjZDllM2JlODEyNzY5NTE4NGZlNjI2OWI4OWZjYzQzZDAifQ.eyJhdWQiOiJ0ZXN0LWNsaWVudC1pZCIsImV4cCI6MTA0MTM3OTIwMDAsImdyb3VwcyI6WyJncm91cDEiLCJncm91cDIiXSwiaXNzIjoiaHR0cHM6Ly8xMjcuMC4wLjE6MzY3MzMiLCJ1c2VybmFtZSI6InRlc3QtdXNlci1uYW1lIn0.tLWSSqwlDNSI_hyKFtEY9mKzXM8kAtuxArtX4wYicnGU3LPgxQgyMa8XOOZfRAieYJtIIgWMiNh5nT8YK1a5ddorM0Ohgy_kNvFsKSYg4M80imUBjQID67wjn__jbNm7D6wjrQk_UI5LKnFqREisWXIU5nac8SO48O8d_Ya50DpeQvNzje7I-Mcz7n3O-beaYlfrs0uoZLSHvuM_YIfZZRPBXaJyArLEAD2pm43joZDldvDDbeLMrcpWpAAKObxJbe3u8LBV2Y4NhWJN6KCgUTjk76eu-bcAncVEfGihUn7UHTE4tuvAwb_f6DCu7tpF6XxekViWXUozBRkv5XDjBA
-
 
 # Connect to the httpbin service. When a valid JWT is attached, it returns the HTTP code 200.
 kubectl exec $(kubectl get pod -l app=sleep -n $NS -o jsonpath={.items..metadata.name}) -c sleep -n $NS -- curl http://httpbin.$NS:8000/ip -s -o /dev/null -w "%{http_code}\n" --header "Authorization: Bearer $TOKEN"

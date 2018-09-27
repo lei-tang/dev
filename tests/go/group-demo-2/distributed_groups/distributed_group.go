@@ -14,7 +14,6 @@ var (
 
 
 //TODO:
-//1. clean up the log, show the demo related log with -v 1
 //3. authorize the resigned JWT with group array (follow the user guide for groups claim)
 //4. write script to run the demo
 //5. create the detailed message flow slide
@@ -31,17 +30,19 @@ func main() {
 	if len(jwt) == 0 {
 		glog.Fatalf("Must specify the JWT to authenticate --jwt.")
 	}
+
 	// Resolve the distributed groups claim
+	glog.Infof("1. Resolve the JWT ...")
 	userInfo, claims, err := utils.ResolveDistributedGroupToken("test-client-id", "groups",
 		"", "username",	tlsCertPath, jwt)
 	if err != nil {
 		glog.Fatalf("Failed to resolve the distributed group token: %v", err)
 	}
-	glog.Infof("The JWT is authenticated.")
-	glog.Infof("The user groups is: %+v", userInfo.GetGroups())
+	glog.Infof("The resolved groups is: %+v", userInfo.GetGroups())
 	glog.V(5).Infof("The claims are: %+v", claims)
 
 	// Load the private key for signing resolved JWT
+	glog.Infof("2. Create a new JWT with the resolved JWT claims ...")
 	privKey, err := utils.LoadJSONWebPrivateKeyFromFile("../testdata/token_service_signing_key.pem", jose.RS256)
 	if err != nil {
 		glog.Fatalf("Failed to load signing key: %v", err)
@@ -55,10 +56,9 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Failed to create a signer: %v", err)
 	}
-	glog.Infof("Create a new JWT with the resolved JWT claims.")
 	jwtResolved, err := utils.CreateJwtWithClaims(tokenServiceIssuer, signer, claims)
 	if err != nil {
 		glog.Fatalf("Failed to create a JWT with the resolved claims: %v", err)
 	}
-	glog.Infof("The JWT with resolved claims is: %+v", jwtResolved)
+	glog.Infof("The new JWT with resolved claims is: %+v", jwtResolved)
 }
