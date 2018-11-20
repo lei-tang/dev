@@ -24,7 +24,9 @@ toolchain {
   tool_path { name: "cpp" path: "/usr/bin/cpp" }
   tool_path { name: "dwp" path: "/usr/bin/dwp" }
   tool_path { name: "gcc" path: "cc_wrapper.sh" }
-  cxx_flag: "-std=c++0x"
+# cxx_flag: "-std=c++0x"
+# Use c++14 to resolve c++14 symbols, such as std::make_unique
+  cxx_flag: "-std=c++14"
   linker_flag: "-lstdc++"
   linker_flag: "-undefined"
   linker_flag: "dynamic_lookup"
